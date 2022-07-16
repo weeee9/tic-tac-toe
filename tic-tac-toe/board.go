@@ -4,34 +4,76 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+const (
+	// use screen size as board size
+	boardSize = screenHeight
+)
+
+func newBoardImage() *ebiten.Image {
+	image := ebiten.NewImage(boardSize, boardSize)
+	image.Fill(colorBlack)
+	return image
+}
+
 type Board struct {
-	size   int
 	round  symbol
-	blocks [3][3]*Block
+	blocks [numBlocks][numBlocks]*Block
 	end    bool
 }
 
-func NewBoard(size int) *Board {
+func NewBoard() *Board {
 	b := &Board{
-		size:   size,
-		blocks: [3][3]*Block{},
+		blocks: [numBlocks][numBlocks]*Block{},
 	}
 
-	for y := 0; y < 3; y++ {
-		for x := 0; x < 3; x++ {
+	// initial blocks
+	for y := 0; y < numBlocks; y++ {
+		for x := 0; x < numBlocks; x++ {
 			t := NewBlock(symbolNon, x, y)
 			b.blocks[y][x] = t
 		}
 	}
 
+	b.setNextRound()
+
 	return b
+}
+
+func (b *Board) Update(input *Input) {
+	if !input.Pressed() {
+		return
+	}
+
+	if !b.mousePositionInBoard(input) {
+		return
+	}
+
+	if !b.canSet(input) {
+		return
+	}
+
+	b.setBlock(input, b.round)
+
+	b.checkState()
+}
+
+// Draw renders the board
+// we draw blocks on the board and use the gap between blocks as frame line
+func (b *Board) Draw(boardImage *ebiten.Image) {
+	boardImage.Fill(frameColor)
+
+	for y := range b.blocks {
+		for x := range b.blocks[y] {
+			b.blockAt(x, y).Draw(boardImage)
+		}
+	}
 }
 
 func (b *Board) blockAt(x, y int) *Block {
 	return b.blocks[y][x]
 }
 
-func (b *Board) Next() {
+func (b *Board) setNextRound() {
 	if b.round == symbolX {
 		b.round = symbolO
 		return
@@ -40,93 +82,50 @@ func (b *Board) Next() {
 	b.round = symbolX
 }
 
-func (b *Board) SetBlock(x, y int, symbol symbol) {
-	if !b.blockAt(x, y).CanSet() {
-		return
-	}
-	b.blocks[y][x].current.symbol = symbol
-	b.Next()
+func (b *Board) setBlock(input *Input, symbol symbol) {
+	blockX, blockY := b.getBlockIndexFromInput(input)
+	b.blocks[blockY][blockX].symbol = symbol
 }
 
-func (b *Board) Size() (int, int) {
-	x := b.size*blockSize + (b.size+1)*blockMargin
+func (b *Board) size() (int, int) {
+	x := boardSize
 	y := x
 
 	return x, y
 }
 
-func (b *Board) Draw(boardImage *ebiten.Image) {
-	boardImage.Fill(frameColor)
-	for j := 0; j < b.size; j++ {
-		for i := 0; i < b.size; i++ {
-			op := &ebiten.DrawImageOptions{}
-			x := i*blockSize + (i+1)*blockMargin
-			y := j*blockSize + (j+1)*blockMargin
-			op.GeoM.Translate(float64(x), float64(y))
-			op.ColorM.ScaleWithColor(blockBackgroundColor())
-			boardImage.DrawImage(blockImage, op)
-		}
-	}
-	for y := range b.blocks {
-		for x := range b.blocks[y] {
-			b.blocks[y][x].Draw(boardImage)
-		}
-	}
+func (b *Board) canSet(input *Input) bool {
+	blockX, blockY := b.getBlockIndexFromInput(input)
+
+	return b.blockAt(blockX, blockY).canSet()
 }
 
 func (b *Board) checkState() {
 	// win or draw state
-	if 0 == 1 {
+	if checkWin(b.round, b.blocks) {
 		b.end = true
-	}
-
-	for y := 0; y < 3; y++ {
-		for x := 0; x < 3; x++ {
-			if b.blocks[y][x].current.symbol == symbolNon {
-				return
-			}
-		}
-	}
-	b.end = true
-}
-
-func (b *Board) mouseInBoard(x, y int) bool {
-	width, height := b.Size()
-
-	boardMargin := (screenWidth - width) / 2
-
-	return (x < width || x > boardMargin) &&
-		(y < height || y > boardMargin)
-}
-
-func (b *Board) getIndexFromXY(x, y int) (int, int) {
-	width, height := b.Size()
-
-	boardLeftRightMargin := (screenWidth - width) / 2
-
-	boardTopBottomMargin := (screenWidth - height) / 2
-	x -= boardLeftRightMargin
-	y -= boardTopBottomMargin
-
-	return x / blockSize, y / blockSize
-}
-
-func (b *Board) Update(input *Input) {
-	if b.end {
 		return
 	}
+	b.setNextRound()
+}
 
-	if !input.Pressed() {
-		return
-	}
+func (b *Board) isEnd() bool {
+	return b.end
+}
 
+func (b *Board) mousePositionInBoard(input *Input) bool {
+	mouseX, mouseY := input.Pos()
+
+	width, height := b.size()
+	return (mouseX > 0 && mouseX < width) &&
+		(mouseY > 0 && mouseY < height)
+}
+
+func (b *Board) getBlockIndexFromInput(input *Input) (int, int) {
 	x, y := input.Pos()
-	if !b.mouseInBoard(x, y) {
-		return
-	}
+	return b.getBlockIndexFromXY(x, y)
+}
 
-	boardX, boardY := b.getIndexFromXY(x, y)
-	b.SetBlock(boardX, boardY, b.round)
-
-	b.checkState()
+func (b *Board) getBlockIndexFromXY(x, y int) (int, int) {
+	return x / blockSize, y / blockSize
 }

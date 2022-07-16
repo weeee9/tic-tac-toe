@@ -10,8 +10,6 @@ import (
 type Game struct{}
 
 func main() {
-	
-
 	if err := ebiten.RunGame(tictactoe.NewGame()); err != nil {
 		log.Fatal(err)
 	}
