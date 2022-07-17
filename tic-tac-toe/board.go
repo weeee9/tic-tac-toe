@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	// use screen size as board size
-	boardSize = screenHeight
+	numBlocks = 3
+	// board has 3 x 3 blocks and 2 frame line in each of x, y axis
+	boardSize = (blockSize * numBlocks) + (blockMargin * (numBlocks - 1))
 )
 
 func newBoardImage() *ebiten.Image {
@@ -18,6 +19,7 @@ func newBoardImage() *ebiten.Image {
 type Board struct {
 	round  symbol
 	blocks [numBlocks][numBlocks]*Block
+	winner symbol
 	end    bool
 }
 
@@ -69,6 +71,10 @@ func (b *Board) Draw(boardImage *ebiten.Image) {
 	}
 }
 
+func (b *Board) Round() symbol {
+	return b.round
+}
+
 func (b *Board) blockAt(x, y int) *Block {
 	return b.blocks[y][x]
 }
@@ -103,9 +109,14 @@ func (b *Board) canSet(input *Input) bool {
 func (b *Board) checkState() {
 	// win or draw state
 	if checkWin(b.round, b.blocks) {
+		b.winner = b.round
 		b.end = true
 		return
 	}
+
+	// if checkDraw(b.blocks) {
+	// }
+
 	b.setNextRound()
 }
 
